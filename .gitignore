@@ -1,0 +1,47 @@
+######################
+# secrets #
+######################
+*.secrets
+*.properties
+###################
+# compiled #
+###################
+*.com
+*.class
+*.dll
+*.pdb
+*.config
+*.cache
+*.suo
+###############
+# Directories #
+###############
+bin/
+obj/
+TestResults/
+###################
+# Web publish log #
+###################
+*.Publish.xml
+#############
+# Resharper #
+#############
+/_ReSharper.*
+*.ReSharper.*
+############
+# Packages #
+############
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+######################
+# Logs and databases #
+######################
+*.log
+*.sqlite
+*.db
