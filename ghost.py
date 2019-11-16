@@ -18,13 +18,14 @@ import time
 from configparser import ConfigParser
 
 # use an automated testing driver
-def make_driver():
+def make_driver(headless=False):
     moz_driver = "./geckodriver"
 
     # headless mode
-    # options = Options()
-    # options.add_argument('-headless')
-    # driver = webdriver.Firefox(executable_path=moz_driver, firefox_options=options)
+    if headless == True:
+        options = Options()
+        options.add_argument('-headless')
+        driver = webdriver.Firefox(executable_path=moz_driver, firefox_options=options)
 
     # browser visible mode
     driver = webdriver.Firefox(executable_path=moz_driver)
