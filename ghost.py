@@ -1,17 +1,11 @@
 #!/usr/bin/env python
 
-import requests
-import lxml
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.alert import Alert
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import Select
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
+
+# waits
 import time
 
 # properties
@@ -32,36 +26,78 @@ class Driver(object):
         if self.headless == True:
             options = Options()
             options.add_argument('-headless')
-            browser = webdriver.Firefox(executable_path=self.browser_path, firefox_options=options)
+            driver = webdriver.Firefox(executable_path=self.browser_path, firefox_options=options)
         else:
             # browser visible mode
-            browser = webdriver.Firefox(executable_path=self.browser_path)
+            driver = webdriver.Firefox(executable_path=self.browser_path)
 
-        return browser
+        return driver
 
 
 class SlackGhost(Driver):
-    def __init__(self, url, user, pwd):
+    def __init__(self, url, user, pwd, comm_type=None, comm_name=None):
         self.url = url
         self.user = user
         self.pwd = pwd
+        self.driver = Driver().make_driver()
+        self.comm_type = comm_type
+        self.comm_name = comm_name
 
     def login(self):
-        driver = Driver().make_driver()
-        driver.get(self.url)
 
-        username = driver.find_element_by_id("email")
-        username.send_keys(user)
+        self.driver.get(self.url)
 
-        password = driver.find_element_by_id("password")
-        password.send_keys(pwd)
+        # fill out user & password
+        self.driver.find_element_by_id("email").send_keys(self.user)
+        self.driver.find_element_by_id("password").send_keys(self.pwd)
 
-        #uncheck remember me button
-        driver.execute_script("document.getElementsByClassName"
+        # uncheck remember me button
+        self.driver.execute_script("document.getElementsByClassName"
                               "('checkbox normal inline_block small_right_margin')[0].click()")
 
-        #signin
-        driver.execute_script("document.getElementById('signin_btn').click()")
+        # sign in
+        self.driver.execute_script("document.getElementById('signin_btn').click()")
+
+
+    def delete_messages(self):
+        # wait until the side bar is loaded
+        time.sleep(5)
+        #if self.comm_type == 'channel':
+
+        self.driver.execute_script("document.getElementsByClassName"
+                                   "('c-button-unstyled p-channel_sidebar__section_heading_label p-channel_sidebar__section_heading_label--clickable')[0].click()")
+
+
+        # search channels or messages
+        time.sleep(5)
+        actions = ActionChains(self.driver)
+        actions.send_keys(self.comm_name).send_keys(Keys.TAB)
+        actions.perform()
+        # select the first item returned
+        time.sleep(5)
+        self.driver.execute_script("document.getElementsByClassName"
+                                   "('p-channel_browser_list_item')[0].click()")
+
+        # delete messages
+        time.sleep(5)
+        print("Finding message...")
+
+        #elem = "/html/body/div[2]/div/div/div[4]/div/div/div/div/div[2]/div/div[2]/div[1]/div/div/div[25]/div/div[3]/span"
+
+        elems = self.driver.find_elements_by_css_selector("span[data-qa='message-text']")
+
+        self.driver.execute_script("arguments[0].click();", elems[1])
+
+        print("clicking dropdown...")
+        self.driver.execute_script("document.getElementsByClassName"
+                                   "('ReactModal__Body - -open').click()")
+
+        print("Deleting message...")
+        self.driver.execute_script("document.getElementsByClassName"
+                                   "('c-button-unstyled p-message_actions_menu__delete_message c-menu_item__button c-menu_item__button--danger')[0].click()")
+
+
+
 
 
 if __name__ == "__main__":
@@ -72,7 +108,13 @@ if __name__ == "__main__":
 
     test_url = 'https://testingghost.slack.com'
 
-    SlackGhost(test_url, user, pwd).login()
+    comm_type = 'channel'
+
+    comm_name = 'random'
+
+    slack_ghost = SlackGhost(test_url, user, pwd, comm_type, comm_name)
+    slack_ghost.login()
+    slack_ghost.delete_messages()
 
 
 
