@@ -4,6 +4,9 @@ from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 # waits
 import time
@@ -64,39 +67,38 @@ class SlackGhost(Driver):
         time.sleep(5)
         #if self.comm_type == 'channel':
 
-        self.driver.execute_script("document.getElementsByClassName"
-                                   "('c-button-unstyled p-channel_sidebar__section_heading_label p-channel_sidebar__section_heading_label--clickable')[0].click()")
+        # select channel in sidebar
+        channel_sidebar = self.driver.find_elements_by_css_selector("span[data-qa='channel_sidebar_name_{}']".format(self.comm_name))
+        self.driver.execute_script("arguments[0].click();", channel_sidebar[0])
 
-
-        # search channels or messages
+        # select messages
         time.sleep(5)
-        actions = ActionChains(self.driver)
-        actions.send_keys(self.comm_name).send_keys(Keys.TAB)
-        actions.perform()
-        # select the first item returned
+        print("select messages")
+        messages = self.driver.find_elements_by_class_name('c-message__body')
+        print(messages[1])
+
+        #for message in messages
+
+        ActionChains(self.driver).move_to_element(messages[1]).perform()
+        messages[1].click()
+
+        print("opening the dropdown")
         time.sleep(5)
-        self.driver.execute_script("document.getElementsByClassName"
-                                   "('p-channel_browser_list_item')[0].click()")
+        print("deleting")
 
-        # delete messages
+        self.driver.switch_to.frame(frame)
+        dropdown = self.driver.find_element_by_css_selector("body > div.ReactModalPortal")
+
+        print(dropdown)
+        self.driver.execute_script("arguments[0].click();", dropdown)
+
+        print(delete_drop)
         time.sleep(5)
-        print("Finding message...")
+        delete_drop = self.driver.find_elements_by_css_selector("span[data-qa='delete_message']")
+        delete_drop.click()
 
-        #elem = "/html/body/div[2]/div/div/div[4]/div/div/div/div/div[2]/div/div[2]/div[1]/div/div/div[25]/div/div[3]/span"
-
-        elems = self.driver.find_elements_by_css_selector("span[data-qa='message-text']")
-
-        self.driver.execute_script("arguments[0].click();", elems[1])
-
-        print("clicking dropdown...")
-        self.driver.execute_script("document.getElementsByClassName"
-                                   "('ReactModal__Body - -open').click()")
-
-        print("Deleting message...")
-        self.driver.execute_script("document.getElementsByClassName"
-                                   "('c-button-unstyled p-message_actions_menu__delete_message c-menu_item__button c-menu_item__button--danger')[0].click()")
-
-
+        #for message in delete_drop:
+            #self.driver.execute_script("arguments[0].click();", message)
 
 
 
