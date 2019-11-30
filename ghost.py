@@ -20,7 +20,7 @@ class Driver(object):
         headless: see the browser for development
         browser_path: path to actual executable. Download here - https://www.seleniumhq.org/download/
     """
-    def __init__(self, headless=False, browser_path = "./geckodriver"):
+    def __init__(self, headless, browser_path):
         self.headless = headless
         self.browser_path = browser_path
 
@@ -37,86 +37,115 @@ class Driver(object):
         return driver
 
 
-class SlackGhost(Driver):
+class SlackGhost(object):
+    """The SlackGhost gets a driver from Driver and can log into account as user and delete messages
+    """
     def __init__(self, url, user, pwd, comm_type=None, comm_name=None):
         self.url = url
         self.user = user
         self.pwd = pwd
-        self.driver = Driver().make_driver()
+        self.driver = Driver(headless=False, browser_path="./geckodriver").make_driver()
         self.comm_type = comm_type
         self.comm_name = comm_name
 
     def login(self):
-
         self.driver.get(self.url)
-
         # fill out user & password
         self.driver.find_element_by_id("email").send_keys(self.user)
         self.driver.find_element_by_id("password").send_keys(self.pwd)
-
         # uncheck remember me button
         self.driver.execute_script("document.getElementsByClassName"
                               "('checkbox normal inline_block small_right_margin')[0].click()")
-
         # sign in
         self.driver.execute_script("document.getElementById('signin_btn').click()")
 
 
-    def delete_messages(self):
+    def get_channels_or_dms(self):
+        time.sleep(5)
+        if self.comm_type == 'channel':
+            sidebar_list = self.driver.find_elements_by_xpath('.//span[@class = "p-channel_sidebar__name"]')
+            channel_list = []
+            for elem in sidebar_list:
+                if elem.text not in ['Apps', 'Add a channel']:
+                    channel_list.append(elem.text)
+                elif elem.text == 'Add a channel':
+                    return channel_list
+
+
+    def delete_messages(self, comm_list):
         # wait until the side bar is loaded
         time.sleep(5)
         #if self.comm_type == 'channel':
 
         # select channel in sidebar
-        channel_sidebar = self.driver.find_elements_by_css_selector("span[data-qa='channel_sidebar_name_{}']".format(self.comm_name))
-        self.driver.execute_script("arguments[0].click();", channel_sidebar[0])
+        channel_sidebar = WebDriverWait(self.driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR,
+                                            "span[data-qa='channel_sidebar_name_{}']"
+                                            .format(self.comm_name))))
+
+        print("Selecting channel {} /n".format(channel_sidebar.text))
+        self.driver.execute_script("arguments[0].click();", channel_sidebar)
 
         # select messages
         time.sleep(5)
-        print("select messages")
-        messages = self.driver.find_elements_by_class_name('c-message__body')
-        print(messages[1])
+        print("Last message")
 
-        #for message in messages
+        deleted_message_counter = 0
 
-        ActionChains(self.driver).move_to_element(messages[1]).perform()
-        messages[1].click()
+        while deleted_message_counter < 10:
+            action1 = ActionChains(self.driver)
+            action1.send_keys(Keys.COMMAND).send_keys(Keys.ARROW_UP)
+            action1.perform()
 
-        print("opening the dropdown")
-        time.sleep(5)
-        print("deleting")
 
-        self.driver.switch_to.frame(frame)
-        dropdown = self.driver.find_element_by_css_selector("body > div.ReactModalPortal")
+            input_area = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR,
+                                                ".c-message__editor__input > div:nth-child(1) > p:nth-child(1)"
+                                                )))
 
-        print(dropdown)
-        self.driver.execute_script("arguments[0].click();", dropdown)
+            input_area.clear()
 
-        print(delete_drop)
-        time.sleep(5)
-        delete_drop = self.driver.find_elements_by_css_selector("span[data-qa='delete_message']")
-        delete_drop.click()
+            save_changes_button = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR,
+                                                "button.c-button:nth-child(2)"
+                                                )))
+            self.driver.execute_script("arguments[0].click();", save_changes_button)
 
-        #for message in delete_drop:
-            #self.driver.execute_script("arguments[0].click();", message)
+            delete_button = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR,
+                                                ".c-button--danger"
+                                                )))
+
+            self.driver.execute_script("arguments[0].click();", delete_button)
+
+            deleted_message_counter += 1
+            print("Deleted {} messages so far...".format(deleted_message_counter))
+
+            back_to_input_area = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.XPATH("/html/body/div[2]/div/div/div[4]/div/div/footer/div/div/div[1]/div/div[1]")
+                                                )))
+
+            self.driver.execute_script("arguments[0].click();", back_to_input_area)
+
+
 
 
 
 if __name__ == "__main__":
     config = ConfigParser()
     config.read('config/secrets.properties')
+    # get inputs
     user = config.get('SlackSection', 'SLACK_GHOST_USER')
     pwd = config.get('SlackSection', 'SLACK_GHOST_PASS')
-
-    test_url = 'https://testingghost.slack.com'
-
+    workplace = config.get('SlackSection', 'SLACK_GHOST_WORKPLACE')
     comm_type = 'channel'
-
     comm_name = 'random'
 
+    test_url = 'https://{}.slack.com'.format(workplace)
     slack_ghost = SlackGhost(test_url, user, pwd, comm_type, comm_name)
     slack_ghost.login()
-    slack_ghost.delete_messages()
+    comm_list = slack_ghost.get_channels_or_dms()
+    slack_ghost.delete_messages(comm_list)
 
 
 
