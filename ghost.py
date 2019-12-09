@@ -72,46 +72,85 @@ class SlackGhost(object):
                     return channel_list
 
 
-    def delete_messages(self, comm_list):
-        # wait until the side bar is loaded
+    def select_channel(self, comm_input):
         time.sleep(5)
-        #if self.comm_type == 'channel':
-
         # select channel in sidebar
         channel_sidebar = WebDriverWait(self.driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR,
                                             "span[data-qa='channel_sidebar_name_{}']"
-                                            .format(self.comm_name))))
+                                            .format(comm_input))))
 
         print("Selecting channel {} /n".format(channel_sidebar.text))
         self.driver.execute_script("arguments[0].click();", channel_sidebar)
-
-        # select messages
         time.sleep(5)
-        print("Last message")
+
+    def select_message(self):
+        # up select last message as user
+        action1 = ActionChains(self.driver)
+        action1.send_keys(Keys.COMMAND).send_keys(Keys.ARROW_UP)
+        action1.perform()
+        message = WebDriverWait(self.driver, 15).until(
+                EC.presence_of_element_located((By.ID,
+                                                "undefined"
+                                                )))
+        return message
+
+
+    def delete_messages(self, comm_list):
+
+        try:
+            comm_place = comm_list.index(comm_name)
+        except ValueError:
+            print("{} {} doesn't exist!".format(comm_type, comm_name))
+            raise ValueError
+
+        #get other comms
+        comm_before = comm_list[comm_place - 1]
+        comm_after = comm_list[comm_place + 1]
+
+        # wait until the side bar is loaded
+        time.sleep(5)
 
         deleted_message_counter = 0
 
         while deleted_message_counter < 10:
-            action1 = ActionChains(self.driver)
-            action1.send_keys(Keys.COMMAND).send_keys(Keys.ARROW_UP)
-            action1.perform()
+            # select comm to delete from
 
+            retries = 0
+            while retries < 10:
+                try:
+                    self.select_channel(comm_name)
+                    message = self.select_message()
+                    retries = + 1
+                    print(message)
+                    if message:
+                        retries = 10
+                except TimeoutError:
+                    print("Deleted {} messages, can't find any more.".format(deleted_message_counter))
+                    return None
 
-            input_area = WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR,
-                                                ".c-message__editor__input > div:nth-child(1) > p:nth-child(1)"
-                                                )))
+            message.clear()
 
-            input_area.clear()
-
-            save_changes_button = WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR,
+            try:
+                save_changes_button = WebDriverWait(self.driver, 20).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR,
                                                 "button.c-button:nth-child(2)"
-                                                )))
-            self.driver.execute_script("arguments[0].click();", save_changes_button)
+                                                    )))
+            except TimeoutError:
+                self.close_browser()
 
-            delete_button = WebDriverWait(self.driver, 10).until(
+            try:
+                self.driver.execute_script("arguments[0].click();", save_changes_button)
+            except TimeoutError:
+                try:
+                    self.select_channel(comm_before)
+                except ValueError:
+                    self.select_channel(comm_after)
+
+                self.select_channel(comm_name)
+                message = self.select_message()
+
+            delete_button = WebDriverWait(self.driver, 20).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR,
                                                 ".c-button--danger"
                                                 )))
@@ -119,16 +158,18 @@ class SlackGhost(object):
             self.driver.execute_script("arguments[0].click();", delete_button)
 
             deleted_message_counter += 1
-            print("Deleted {} messages so far...".format(deleted_message_counter))
+            print("Deleted {} message(s) so far...".format(deleted_message_counter))
 
-            back_to_input_area = WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((By.XPATH("/html/body/div[2]/div/div/div[4]/div/div/footer/div/div/div[1]/div/div[1]")
-                                                )))
+            # since text input doesn't seem to be reachable, select other comm to put cursor back in box
+            try:
+                self.select_channel(comm_before)
+            except ValueError:
+                self.select_channel(comm_after)
 
-            self.driver.execute_script("arguments[0].click();", back_to_input_area)
-
-
-
+    def close_browser(self):
+        self.browser.close()
+        time.sleep(3)
+        self.browser.quit()
 
 
 if __name__ == "__main__":
