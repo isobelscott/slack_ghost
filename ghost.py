@@ -7,6 +7,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 
 # waits
 import time
@@ -80,7 +81,7 @@ class SlackGhost(object):
                                             "span[data-qa='channel_sidebar_name_{}']"
                                             .format(comm_input))))
 
-        print("Selecting channel {} /n".format(channel_sidebar.text))
+        print("Selecting channel {} \n".format(channel_sidebar.text))
         self.driver.execute_script("arguments[0].click();", channel_sidebar)
         time.sleep(5)
 
@@ -110,55 +111,42 @@ class SlackGhost(object):
 
         # wait until the side bar is loaded
         time.sleep(5)
-
         deleted_message_counter = 0
+        deleted_all = False
 
-        while deleted_message_counter < 10:
+        while not deleted_all:
             # select comm to delete from
-
             retries = 0
-            while retries < 10:
+            while retries < 40:
                 try:
                     self.select_channel(comm_name)
                     message = self.select_message()
-                    retries = + 1
-                    print(message)
+                    retries += 1
+                    print(message.text)
                     if message:
-                        retries = 10
-                except TimeoutError:
+                        retries += 40
+                        message.clear()
+                        save_changes_button = WebDriverWait(self.driver, 20).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR,
+                                                            "button.c-button:nth-child(2)"
+                                                            )))
+                        self.driver.execute_script("arguments[0].click();", save_changes_button)
+
+                        delete_button = WebDriverWait(self.driver, 20).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR,
+                                                            ".c-button--danger"
+                                                            )))
+
+                        self.driver.execute_script("arguments[0].click();", delete_button)
+
+                        deleted_message_counter += 1
+                        print("Deleted {} message(s) so far...".format(deleted_message_counter))
+
+                except TimeoutException:
                     print("Deleted {} messages, can't find any more.".format(deleted_message_counter))
+                    deleted_all = True
+                    self.close_driver()
                     return None
-
-            message.clear()
-
-            try:
-                save_changes_button = WebDriverWait(self.driver, 20).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR,
-                                                "button.c-button:nth-child(2)"
-                                                    )))
-            except TimeoutError:
-                self.close_browser()
-
-            try:
-                self.driver.execute_script("arguments[0].click();", save_changes_button)
-            except TimeoutError:
-                try:
-                    self.select_channel(comm_before)
-                except ValueError:
-                    self.select_channel(comm_after)
-
-                self.select_channel(comm_name)
-                message = self.select_message()
-
-            delete_button = WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR,
-                                                ".c-button--danger"
-                                                )))
-
-            self.driver.execute_script("arguments[0].click();", delete_button)
-
-            deleted_message_counter += 1
-            print("Deleted {} message(s) so far...".format(deleted_message_counter))
 
             # since text input doesn't seem to be reachable, select other comm to put cursor back in box
             try:
@@ -166,10 +154,13 @@ class SlackGhost(object):
             except ValueError:
                 self.select_channel(comm_after)
 
-    def close_browser(self):
-        self.browser.close()
+    def close_driver(self):
+        self.driver.close()
+        print("Closing driver...")
         time.sleep(3)
-        self.browser.quit()
+        self.driver.quit()
+        print("Quiting driver...")
+
 
 
 if __name__ == "__main__":
@@ -179,8 +170,8 @@ if __name__ == "__main__":
     user = config.get('SlackSection', 'SLACK_GHOST_USER')
     pwd = config.get('SlackSection', 'SLACK_GHOST_PASS')
     workplace = config.get('SlackSection', 'SLACK_GHOST_WORKPLACE')
-    comm_type = 'channel'
-    comm_name = 'random'
+    comm_type = 'messages'
+    comm_name = 'iztest'
 
     test_url = 'https://{}.slack.com'.format(workplace)
     slack_ghost = SlackGhost(test_url, user, pwd, comm_type, comm_name)
