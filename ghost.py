@@ -62,28 +62,34 @@ class SlackGhost(object):
 
 
     def get_channels_or_dms(self):
-        time.sleep(5)
-        if self.comm_type == 'channel':
-            sidebar_list = self.driver.find_elements_by_xpath('.//span[@class = "p-channel_sidebar__name"]')
-            channel_list = []
-            for elem in sidebar_list:
-                if elem.text not in ['Apps', 'Add a channel']:
-                    channel_list.append(elem.text)
-                elif elem.text == 'Add a channel':
-                    return channel_list
+       time.sleep(30)
+       sidebar_list = self.driver.find_elements_by_xpath('.//span[@class = "p-channel_sidebar__name"]')
+       dm_or_channel_list = [elem.text for elem in sidebar_list]
+
+       if self.comm_type == 'messages':
+           return dm_or_channel_list[dm_or_channel_list.index('Add a channel') + 1:
+                                     dm_or_channel_list.index('Invite people')]
+
+       elif self.comm_type == 'channel':
+           return dm_or_channel_list[dm_or_channel_list.index('Apps') + 1:
+                                      dm_or_channel_list.index('Add a channel')]
+
+
+
 
 
     def select_channel(self, comm_input):
         time.sleep(5)
         # select channel in sidebar
         channel_sidebar = WebDriverWait(self.driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR,
+                EC.presence_of_element_located((By.CSS_SELECTOR,
                                             "span[data-qa='channel_sidebar_name_{}']"
                                             .format(comm_input))))
 
         print("Selecting channel {} \n".format(channel_sidebar.text))
         self.driver.execute_script("arguments[0].click();", channel_sidebar)
         time.sleep(5)
+
 
     def select_message(self):
         # up select last message as user
@@ -98,17 +104,19 @@ class SlackGhost(object):
 
 
     def delete_messages(self, comm_list):
-
-        try:
-            comm_place = comm_list.index(comm_name)
-        except ValueError:
-            print("{} {} doesn't exist!".format(comm_type, comm_name))
-            raise ValueError
+        print(comm_list)
+        comm_place = comm_list.index(comm_name)
 
         #get other comms
-        comm_before = comm_list[comm_place - 1]
-        comm_after = comm_list[comm_place + 1]
-
+        try:
+            comm_before = comm_list[comm_place - 1]
+        except IndexError:
+            comm_before = None
+        try:
+            comm_after = comm_list[comm_place + 1]
+        except IndexError:
+            comm_after = None
+        
         # wait until the side bar is loaded
         time.sleep(5)
         deleted_message_counter = 0
@@ -117,14 +125,14 @@ class SlackGhost(object):
         while not deleted_all:
             # select comm to delete from
             retries = 0
-            while retries < 40:
+            while retries < 50:
                 try:
                     self.select_channel(comm_name)
                     message = self.select_message()
                     retries += 1
                     print(message.text)
                     if message:
-                        retries += 40
+                        retries += 50
                         message.clear()
                         save_changes_button = WebDriverWait(self.driver, 20).until(
                             EC.presence_of_element_located((By.CSS_SELECTOR,
@@ -171,7 +179,7 @@ if __name__ == "__main__":
     pwd = config.get('SlackSection', 'SLACK_GHOST_PASS')
     workplace = config.get('SlackSection', 'SLACK_GHOST_WORKPLACE')
     comm_type = 'messages'
-    comm_name = 'iztest'
+    comm_name = 'iztest(you)'
 
     test_url = 'https://{}.slack.com'.format(workplace)
     slack_ghost = SlackGhost(test_url, user, pwd, comm_type, comm_name)
